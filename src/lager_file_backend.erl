@@ -94,6 +94,9 @@ handle_event({log, Dest, Level, {Date, Time}, Message},
 handle_event({log, Level, {Date, Time}, Message}, #state{level=L} = State) when Level =< L->
     NewState = write(State, Level, [Date, " ", Time, " ", Message, "\n"]),
     {ok, NewState};
+handle_event({log_raw, Level, Message}, #state{level=L}=State) when Level =< L ->
+    NewState = write(State, Level, [Message, "\n"]),
+    {ok, NewState};
 handle_event(_Event, State) ->
     {ok, State}.
 
