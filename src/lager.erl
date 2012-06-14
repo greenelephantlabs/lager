@@ -22,7 +22,7 @@
 
 %% API
 -export([start/0,
-        log/8, log_dest/9, log/3, log/4,
+        log/8, log_dest/9, log/3, log/4, log_raw/3,
         trace_file/2, trace_file/3, trace_console/1, trace_console/2,
         clear_all_traces/0, stop_trace/1, status/0,
         get_loglevel/1, set_loglevel/2, set_loglevel/3, get_loglevels/0,
@@ -99,6 +99,10 @@ log_dest(Level, Module, Function, Line, Pid, Time, Dest, Format, Args) ->
            safe_format_chop(Format, Args, 4096)],
     safe_notify({log, Dest, lager_util:level_to_num(Level), Timestamp, Msg}).
 
+%% @doc Manually log a piece of text, skip timestamp and pid information
+log_raw(Level, Format, Args) -> 
+    Msg = safe_format_chop(Format, Args, 4096),
+    safe_notify({log_raw, lager_util:level_to_num(Level), Msg}).
 
 %% @doc Manually log a message into lager without using the parse transform.
 -spec log(log_level(), pid(), list()) -> ok | {error, lager_not_running}.
