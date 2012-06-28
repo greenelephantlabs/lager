@@ -23,7 +23,7 @@
 %% API
 -export([start/0,
         log/8, log_dest/9, log/3, log/4, log_raw/3,
-        trace_file/2, trace_file/3, trace_console/1, trace_console/2,
+        trace_file/2, trace_file/3, trace_file_rotation/2, trace_console/1, trace_console/2,
         clear_all_traces/0, stop_trace/1, status/0,
         get_loglevel/1, set_loglevel/2, set_loglevel/3, get_loglevels/0,
         minimum_loglevel/1, posix_error/1,
@@ -120,10 +120,18 @@ log(Level, Pid, Format, Args) ->
            safe_format_chop(Format, Args, 4096)],
     safe_notify({log, lager_util:level_to_num(Level), Timestamp, Msg}).
 
-trace_file(File, Filter) ->
-    trace_file(File, Filter, debug).
+trace_file_rotation(Filter, {File, Level, _Size, _Date, _Count} = Rotation) ->
+    trace_file(File, Filter, Level, {File, none}).
 
-trace_file(File, Filter, Level) ->
+trace_file(File, Filter) ->
+    trace_file(File, Filter, debug, {File, none}).
+
+trace_file(File, Filter, Level) when is_atom(Level) ->
+    trace_file(File, Filter, Level, {File, none}).
+
+trace_file(File, Filter, Level, Rotation) ->
+    io:fwrite("File:~p, Filter:~p, Level:~p, Rotation:~p~n", 
+              [File, Filter, Level, Rotation]),
     Trace0 = {Filter, Level, {lager_file_backend, File}},
     case lager_util:validate_trace(Trace0) of
         {ok, Trace} ->
@@ -133,16 +141,18 @@ trace_file(File, Filter, Level) ->
                 false ->
                     %% install the handler
                     supervisor:start_child(lager_handler_watcher_sup,
-                        [lager_event, {lager_file_backend, File}, {File, none}]);
+                        [lager_event, {lager_file_backend, File}, Rotation]);
                 _ ->
                     {ok, exists}
             end,
             case Res of
               {ok, _} ->
-                %% install the trace.
+                    io:fwrite("installing trace~n", []),
+                    %% install the trace.
                 {MinLevel, Traces} = lager_mochiglobal:get(loglevel),
                 case lists:member(Trace, Traces) of
                   false ->
+                    io:fwrite("change loglevel to ~p~n", [{MinLevel, [Trace|Traces]}]),
                     lager_mochiglobal:put(loglevel, {MinLevel, [Trace|Traces]});
                   _ ->
                     ok
@@ -152,6 +162,7 @@ trace_file(File, Filter, Level) ->
                 E
             end;
         Error ->
+            io:fwrite("Error ~p~n", [Error]),
             Error
     end.
 
