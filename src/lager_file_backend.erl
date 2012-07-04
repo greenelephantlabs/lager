@@ -101,8 +101,10 @@ handle_event(_Event, State) ->
     {ok, State}.
 
 %% @private
-handle_info({rotate, File}, #state{name=File,count=Count,date=Date} = State) ->
+handle_info({rotate, File}, 
+            #state{name=File, fd=FD, inode=Inode, count=Count, date=Date} = State) ->
     lager_util:rotate_logfile(File, Count),
+    lager_util:ensure_logfile(File, FD, Inode, true),
     schedule_rotation(File, Date),
     {ok, State};
 handle_info(_Info, State) ->
