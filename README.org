@@ -123,11 +123,13 @@
   Day, week and month time format: The lead-in character
   for day, week and month specification is a `$'-sign.
   The particular format of day, week and month
-  specification is: [Dhh], [Ww[Dhh]] and [Mdd[Dhh]],
+  specification is: [mss], [Hmm], [Dhh], [Ww[Dhh]] and [Mdd[Dhh]],
   respectively.  Optional time fields default to
   midnight.  The ranges for day and hour specifications
   are:
 
+    ss      seconds, range 0 ... 59
+    mm      minutes, range 0 ... 59
     hh      hours, range 0 ... 23
     w       day of week, range 0 ... 6, 0 = Sunday
     dd      day of month, range 1 ... 31, or the
@@ -135,6 +137,8 @@
             the month.
 
   Some examples:
+    $m00    rotate every minute at 00 second
+    $H15    rotate every hour at 15 minute
     $D0     rotate every night at midnight
     $D23    rotate every day at 23:00 hr
     $W0D23  rotate every week on Sunday at 23:00 hr

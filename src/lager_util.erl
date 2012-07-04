@@ -147,6 +147,20 @@ format_time({{Y, M, D}, {H, Mi, S}}) ->
 
 parse_rotation_day_spec([], Res) ->
     {ok, Res ++ [{hour, 0}]};
+parse_rotation_day_spec([$m, D1, D2], Res) ->
+    case list_to_integer([D1, D2]) of
+        X when X >= 0, X =< 59 ->
+            {ok, Res ++ [{second, X}]};
+        _ ->
+            {error, invalid_date_spec}
+    end;
+parse_rotation_day_spec([$H, D1, D2], Res) ->
+    case list_to_integer([D1, D2]) of
+        X when X >= 0, X =< 60 ->
+            {ok, Res ++ [{minute, X}]};
+        _ ->
+            {error, invalid_date_spec}
+    end;
 parse_rotation_day_spec([$D, D1, D2], Res) ->
     case list_to_integer([D1, D2]) of
         X when X >= 0, X =< 23 ->
@@ -196,6 +210,26 @@ calculate_next_rotation(Spec) ->
 
 calculate_next_rotation([], Now) ->
     Now;
+calculate_next_rotation([{second, X}|T], {{_, _, _}, {H, M, Second}} = Now) when Second < X ->
+    %% rotation is in current minute, sometime
+    NewNow = setelement(2, Now, {H, M, X}),
+    calculate_next_rotation(T, NewNow);
+calculate_next_rotation([{second, X}|T], {{_, _, _}, _} = Now) ->
+    Seconds = calendar:datetime_to_gregorian_seconds(Now) + 60,
+    DateTime = calendar:gregorian_seconds_to_datetime(Seconds),
+    {_, {H, M, _}} = DateTime,
+    NewNow = setelement(2, DateTime, {H, M, X}),
+    calculate_next_rotation(T, NewNow);
+calculate_next_rotation([{minute, X}|T], {{_, _, _}, {H, Minute, _}} = Now) when Minute < X ->
+    %% rotation is in current hour, sometime
+    NewNow = setelement(2, Now, {H, X, 0}),
+    calculate_next_rotation(T, NewNow);
+calculate_next_rotation([{minute, X}|T], {{_, _, _}, _} = Now) ->
+    Seconds = calendar:datetime_to_gregorian_seconds(Now) + 3600,
+    DateTime = calendar:gregorian_seconds_to_datetime(Seconds),
+    {_, {H, _, _}} = DateTime,
+    NewNow = setelement(2, DateTime, {H, X, 0}),
+    calculate_next_rotation(T, NewNow);
 calculate_next_rotation([{hour, X}|T], {{_, _, _}, {Hour, _, _}} = Now) when Hour < X ->
     %% rotation is today, sometime
     NewNow = setelement(2, Now, {X, 0, 0}),
@@ -330,6 +364,8 @@ check_trace_iter(Attrs, [{Key, Match}|T]) ->
 -ifdef(TEST).
 
 parse_test() ->
+    ?assertEqual({ok, [{second, 0}]}, parse_rotation_date_spec("$m00")),
+    ?assertEqual({ok, [{minute, 0}]}, parse_rotation_date_spec("$H00")),
     ?assertEqual({ok, [{hour, 0}]}, parse_rotation_date_spec("$D0")),
     ?assertEqual({ok, [{hour, 23}]}, parse_rotation_date_spec("$D23")),
     ?assertEqual({ok, [{day, 0}, {hour, 23}]}, parse_rotation_date_spec("$W0D23")),
@@ -358,6 +394,18 @@ parse_fail_test() ->
     ok.
 
 rotation_calculation_test() ->
+    ?assertMatch({{2000, 1, 2}, {0, 0, 5}},
+        calculate_next_rotation([{second, 5}], {{2000, 1, 1}, {23, 59, 43}})),
+    ?assertMatch({{2000, 1, 1}, {12, 35, 5}},
+        calculate_next_rotation([{second, 5}], {{2000, 1, 1}, {12, 34, 43}})),
+
+    ?assertMatch({{2000, 1, 2}, {0, 0, 0}},
+        calculate_next_rotation([{minute, 0}], {{2000, 1, 1}, {23, 34, 43}})),
+    ?assertMatch({{2000, 1, 1}, {13, 0, 0}},
+        calculate_next_rotation([{minute, 0}], {{2000, 1, 1}, {12, 34, 43}})),
+    ?assertMatch({{2000, 1, 1}, {12, 40, 0}},
+        calculate_next_rotation([{minute, 40}], {{2000, 1, 1}, {12, 34, 43}})),
+
     ?assertMatch({{2000, 1, 2}, {0, 0, 0}},
         calculate_next_rotation([{hour, 0}], {{2000, 1, 1}, {12, 34, 43}})),
     ?assertMatch({{2000, 1, 1}, {16, 0, 0}},
