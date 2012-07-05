@@ -94,12 +94,17 @@ handle_event({log, Dest, Level, {Date, Time}, Message},
 handle_event({log, Level, {Date, Time}, Message}, #state{level=L} = State) when Level =< L->
     NewState = write(State, Level, [Date, " ", Time, " ", Message, "\n"]),
     {ok, NewState};
+handle_event({log_raw, Level, Message}, #state{level=L}=State) when Level =< L ->
+    NewState = write(State, Level, [Message, "\n"]),
+    {ok, NewState};
 handle_event(_Event, State) ->
     {ok, State}.
 
 %% @private
-handle_info({rotate, File}, #state{name=File,count=Count,date=Date} = State) ->
+handle_info({rotate, File}, 
+            #state{name=File, fd=FD, inode=Inode, count=Count, date=Date} = State) ->
     lager_util:rotate_logfile(File, Count),
+    lager_util:ensure_logfile(File, FD, Inode, true),
     schedule_rotation(File, Date),
     {ok, State};
 handle_info(_Info, State) ->

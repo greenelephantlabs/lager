@@ -87,6 +87,10 @@ handle_event({log, Level, {Date, Time}, [LevelStr, Location, Message]},
             io:put_chars([Time, " ", LevelStr, Message, "\n"])
     end,
     {ok, State};
+handle_event({log_raw, Level, Message}, 
+                #state{level=LogLevel}=State) when Level =< LogLevel ->
+    io:put_chars([Message, "\n"]), 
+    {ok, State};
 handle_event(_Event, State) ->
     {ok, State}.
 
