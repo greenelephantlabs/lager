@@ -104,9 +104,9 @@ handle_event(_Event, State) ->
 handle_info({rotate, File}, 
             #state{name=File, fd=FD, inode=Inode, count=Count, date=Date} = State) ->
     lager_util:rotate_logfile(File, Count),
-    lager_util:ensure_logfile(File, FD, Inode, true),
+    {ok, {FD1, Inode1, Size1}} = lager_util:ensure_logfile(File, FD, Inode, true),
     schedule_rotation(File, Date),
-    {ok, State};
+    {ok, State#state{fd = FD1, inode = Inode1, size = Size1}};
 handle_info(_Info, State) ->
     {ok, State}.
 
