@@ -22,7 +22,7 @@
 
 %% API
 -export([start/0,
-        log/8, log_dest/9, log/3, log/4, log_raw/3,
+        log/8, log_dest/9, log_dest/10, log/3, log/4, log_raw/3, log_raw/8,
         trace_file/2, trace_file/3, trace_file_rotation/2, trace_console/1, trace_console/2,
         clear_all_traces/0, stop_trace/1, status/0,
         get_loglevel/1, set_loglevel/2, set_loglevel/3, get_loglevels/0,
@@ -55,7 +55,15 @@ start_ok(App, {error, Reason}) ->
 -spec dispatch_log(log_level(), atom(), atom(), pos_integer(), pid(), list(), string(), list()) ->
     ok | {error, lager_not_running}.
 
+dispatch_log(Severity, Module, Function, Line, Pid, [raw | Traces], Format, Args) ->
+    dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args, log_raw);
 dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args) ->
+    dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args, log).
+
+-spec dispatch_log(log_level(), atom(), atom(), pos_integer(), pid(), list(), string(), list(), boolean()) ->
+    ok | {error, lager_not_running}.
+
+dispatch_log(Severity, Module, Function, Line, Pid,  Traces, Format, Args, Method) ->
     {LevelThreshold,TraceFilters} = lager_mochiglobal:get(loglevel,{?LOG_NONE,[]}),
     Result=
     case LevelThreshold >= lager_util:level_to_num(Severity) of
@@ -73,7 +81,7 @@ dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args) ->
                     lager_util:level_to_num(Severity),
                     TraceFilters,
                     []),
-                Format,Args);
+                Format,Args,Method);
         _ -> ok
     end.
 
@@ -90,16 +98,26 @@ log(Level, Module, Function, Line, Pid, Time, Format, Args) ->
 %% @private
 -spec log_dest(log_level(), atom(), atom(), pos_integer(), pid(), tuple(), list(), string(), list()) ->
     ok | {error, lager_not_running}.
-log_dest(_Level, _Module, _Function, _Line, _Pid, _Time, [], _Format, _Args) ->
-    ok;
 log_dest(Level, Module, Function, Line, Pid, Time, Dest, Format, Args) ->
+    log_dest(Level, Module, Function, Line, Pid, Time, Dest, Format, Args, log).
+-spec log_dest(log_level(), atom(), atom(), pos_integer(), pid(), tuple(), list(), string(), list(), atom()) ->
+    ok | {error, lager_not_running}.
+log_dest(_Level, _Module, _Function, _Line, _Pid, _Time, [], _Format, _Args, _Method) ->
+    ok;
+log_dest(Level, Module, Function, Line, Pid, Time, Dest, Format, Args, log) ->
     Timestamp = lager_util:format_time(Time),
     Msg = [["[", atom_to_list(Level), "] "],
            io_lib:format("~p@~p:~p:~p ", [Pid, Module, Function, Line]),
            safe_format_chop(Format, Args, 4096)],
+    safe_notify({log, Dest, lager_util:level_to_num(Level), Timestamp, Msg});
+log_dest(Level, _Module, _Function, _Line, _Pid, Time, Dest, Format, Args, log_raw) ->
+    Timestamp = lager_util:format_time(Time),
+    Msg = [["[", atom_to_list(Level), "] "], safe_format_chop(Format, Args, 4096) ],
     safe_notify({log, Dest, lager_util:level_to_num(Level), Timestamp, Msg}).
 
-%% @doc Manually log a piece of text, skip timestamp and pid information
+%% @doc Manually log a piece of text, skip timestamp and pid information - same args as in log/8
+log_raw(Level, _Module, _Function, _Line, _Pid, _Time, Format, Args) -> 
+    log_raw(Level, Format, Args).
 log_raw(Level, Format, Args) -> 
     Msg = safe_format_chop(Format, Args, 4096),
     safe_notify({log_raw, lager_util:level_to_num(Level), Msg}).
@@ -242,7 +260,6 @@ set_loglevel(Handler, Level) when is_atom(Level) ->
 %% @doc Set the loglevel for a particular backend that has multiple identifiers
 %% (eg. the file backend).
 set_loglevel(Handler, Ident, Level) when is_atom(Level) ->
-    io:format("handler: ~p~n", [{Handler, Ident}]),
     Reply = gen_event:call(lager_event, {Handler, Ident}, {set_loglevel, Level}, infinity),
     %% recalculate min log level
     MinLog = minimum_loglevel(get_loglevels()),
