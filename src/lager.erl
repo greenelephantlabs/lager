@@ -22,7 +22,7 @@
 
 %% API
 -export([start/0,
-        log/8, log_dest/9, log_dest/10, log/3, log/4, log_raw/3,
+        log/8, log_clean/8, log_dest/9, log_dest/10, log/3, log/4, log_raw/3,
         trace_file/2, trace_file/3, trace_file_rotation/2, trace_console/1, trace_console/2,
         clear_all_traces/0, stop_trace/1, status/0,
         get_loglevel/1, set_loglevel/2, set_loglevel/3, get_loglevels/0,
@@ -67,7 +67,7 @@ dispatch_log(Severity, Module, Function, Line, Pid,  Traces, Format, Args, Metho
     {LevelThreshold,TraceFilters} = lager_mochiglobal:get(loglevel,{?LOG_NONE,[]}),
     Result=
     case LevelThreshold >= lager_util:level_to_num(Severity) of
-        true -> lager:log(Severity,Module,Function,Line,Pid,
+        true -> lager:Method(Severity,Module,Function,Line,Pid,
                 lager_util:maybe_utc(lager_util:localtime_ms()),
                 Format,Args);
         _ -> ok
@@ -93,6 +93,11 @@ log(Level, Module, Function, Line, Pid, Time, Format, Args) ->
     Msg = [["[", atom_to_list(Level), "] "],
            io_lib:format("~p@~p:~p:~p ", [Pid, Module, Function, Line]),
            safe_format_chop(Format, Args, 4096)],
+    safe_notify({log, lager_util:level_to_num(Level), Timestamp, Msg}).
+
+log_clean(Level, _Module, _Function, _Line, _Pid, Time, Format, Args) ->
+    Timestamp = lager_util:format_time(Time),
+    Msg = [["[", atom_to_list(Level), "] "], "", safe_format_chop(Format, Args, 4096) ],
     safe_notify({log, lager_util:level_to_num(Level), Timestamp, Msg}).
 
 %% @private
