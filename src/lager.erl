@@ -22,7 +22,7 @@
 
 %% API
 -export([start/0,
-        log/8, log_dest/9, log_dest/10, log/3, log/4, log_raw/3, log_raw/8,
+        log/8, log_dest/9, log_dest/10, log/3, log/4, log_raw/3,
         trace_file/2, trace_file/3, trace_file_rotation/2, trace_console/1, trace_console/2,
         clear_all_traces/0, stop_trace/1, status/0,
         get_loglevel/1, set_loglevel/2, set_loglevel/3, get_loglevels/0,
@@ -55,8 +55,8 @@ start_ok(App, {error, Reason}) ->
 -spec dispatch_log(log_level(), atom(), atom(), pos_integer(), pid(), list(), string(), list()) ->
     ok | {error, lager_not_running}.
 
-dispatch_log(Severity, Module, Function, Line, Pid, [raw | Traces], Format, Args) ->
-    dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args, log_raw);
+dispatch_log(Severity, Module, Function, Line, Pid, [clean | Traces], Format, Args) ->
+    dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args, log_clean);
 dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args) ->
     dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args, log).
 
@@ -110,14 +110,12 @@ log_dest(Level, Module, Function, Line, Pid, Time, Dest, Format, Args, log) ->
            io_lib:format("~p@~p:~p:~p ", [Pid, Module, Function, Line]),
            safe_format_chop(Format, Args, 4096)],
     safe_notify({log, Dest, lager_util:level_to_num(Level), Timestamp, Msg});
-log_dest(Level, _Module, _Function, _Line, _Pid, Time, Dest, Format, Args, log_raw) ->
+log_dest(Level, _Module, _Function, _Line, _Pid, Time, Dest, Format, Args, log_clean) ->
     Timestamp = lager_util:format_time(Time),
     Msg = [["[", atom_to_list(Level), "] "], safe_format_chop(Format, Args, 4096) ],
     safe_notify({log, Dest, lager_util:level_to_num(Level), Timestamp, Msg}).
 
 %% @doc Manually log a piece of text, skip timestamp and pid information - same args as in log/8
-log_raw(Level, _Module, _Function, _Line, _Pid, _Time, Format, Args) -> 
-    log_raw(Level, Format, Args).
 log_raw(Level, Format, Args) -> 
     Msg = safe_format_chop(Format, Args, 4096),
     safe_notify({log_raw, lager_util:level_to_num(Level), Msg}).
